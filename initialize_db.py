@@ -96,4 +96,3 @@ def initialize_database():
     )
 
 
-initialize_database()

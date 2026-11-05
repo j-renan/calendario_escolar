@@ -95,4 +95,5 @@ def initialize_database():
         "inicializados com sucesso!"
     )
 
+initialize_database()
 

@@ -1,0 +1,37 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="PyPackageRequirementsInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredPackages">
+        <list>
+          <option value="blinker" />
+          <option value="click" />
+          <option value="colorama" />
+          <option value="et_xmlfile" />
+          <option value="Flask" />
+          <option value="gunicorn" />
+          <option value="itsdangerous" />
+          <option value="Jinja2" />
+          <option value="MarkupSafe" />
+          <option value="numpy" />
+          <option value="openpyxl" />
+          <option value="packaging" />
+          <option value="pandas" />
+          <option value="python-dateutil" />
+          <option value="six" />
+          <option value="tzdata" />
+          <option value="Werkzeug" />
+          <option value="Flask-Login" />
+          <option value="Flask-SQLAlchemy" />
+          <option value="greenlet" />
+          <option value="SQLAlchemy" />
+          <option value="typing_extensions" />
+          <option value="pdfplumber" />
+          <option value="xlrd" />
+          <option value="python-dotenv" />
+          <option value="groq" />
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>

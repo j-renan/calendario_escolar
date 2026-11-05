@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calendário Escolar SENAI-SP</title>
+    
+    <!-- Google Fonts Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/print.css" media="print">
+    
+    <style>
+        /* Dropdown export menu */
+        .dropdown-menu-custom {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: #FFFFFF;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-lg);
+            display: none;
+            flex-direction: column;
+            min-width: 170px;
+            z-index: 50;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+        .dropdown-menu-custom.active {
+            display: flex;
+        }
+        .dropdown-item-custom {
+            padding: 8px 14px;
+            font-size: 12px;
+            color: var(--text-primary);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.15s;
+            cursor: pointer;
+        }
+        .dropdown-item-custom:hover {
+            background: #F1F5F9;
+            color: #0284C7;
+        }
+        .relative-box {
+            position: relative;
+        }
+    </style>
+</head>
+<body>
+    <section class="auth-screen" id="authScreen">
+        <form class="auth-screen-card" id="formLogin">
+            <div class="auth-screen-brand"><i class="fa-solid fa-graduation-cap"></i></div>
+            <h1>Calendário Escolar</h1>
+            <p>Entre com sua conta para acessar a gestão de calendários.</p>
+            <div class="form-group">
+                <label for="loginEmail">E-mail</label>
+                <input type="email" id="loginEmail" class="form-control" required autocomplete="username">
+            </div>
+            <div class="form-group">
+                <label for="loginPassword">Senha</label>
+                <input type="password" id="loginPassword" class="form-control" required autocomplete="current-password">
+            </div>
+            <button type="submit" class="btn-toolbar btn-primary auth-submit">Entrar</button>
+            <div class="auth-error" id="loginError" role="alert"></div>
+        </form>
+    </section>
+    <div class="app-container">
+        <!-- ========================================== -->
+        <!-- Barra Lateral Esquerda (Dark & Elegant)   -->
+        <!-- ========================================== -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="brand-icon">
+                    <i class="fa-solid fa-graduation-cap"></i>
+                </div>
+                <div class="brand-text">
+                    <h2>SENAI</h2>
+                    <span>Calendário Escolar</span>
+                </div>
+                <button class="sidebar-toggle" id="btnToggleSidebar" title="Recolher menu lateral" aria-label="Recolher menu lateral" aria-controls="sidebar" aria-expanded="true">
+                    <i class="fa-solid fa-angles-left"></i>
+                </button>
+            </div>
+
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" data-tab="calendarios" title="Calendários">
+                    <i class="fa-solid fa-calendar-days"></i>
+                    <span>Calendários</span>
+                </a>
+                <a href="#" class="nav-item" data-tab="historico" title="Histórico">
+                    <i class="fa-solid fa-clock-rotate-left"></i>
+                    <span>Histórico</span>
+                </a>
+                <a href="#" class="nav-item" data-tab="usuarios" title="Usuários">
+                    <i class="fa-solid fa-users"></i>
+                    <span>Usuários</span>
+                </a>
+                <a href="#" class="nav-item" data-tab="categorias" title="Categorias">
+                    <i class="fa-solid fa-layer-group"></i>
+                    <span>Categorias</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-badge">
+                    <div class="user-avatar" id="userAvatar">C</div>
+                    <div class="user-info">
+                        <div class="user-name" id="userName">Coordenador Pedagógico</div>
+                        <div class="user-role" id="userRole">COORDENADOR</div>
+                    </div>
+                </div>
+                <button class="btn-auth-toggle" id="btnAuthToggle">
+                    <i class="fa-solid fa-right-from-bracket"></i> Sair
+                </button>
+            </div>
+        </aside>
+
+        <!-- ========================================== -->
+        <!-- Painel Central de Trabalho                 -->
+        <!-- ========================================== -->
+        <main class="main-content">
+            <!-- Barra de Ferramentas de Edição -->
+            <header class="toolbar-header" id="toolbarHeader">
+                <div class="toolbar-left" aria-label="Ações do calendário">
+                    <div class="toolbar-group toolbar-edit-actions">
+                        <button class="btn-toolbar" id="btnCreateCalendar" title="Criar calendário para outro ano e semestre">
+                            <i class="fa-solid fa-calendar-plus"></i>
+                            <span>Novo calendário</span>
+                        </button>
+                        <button class="btn-toolbar btn-primary" id="btnSaveDraft" title="Salvar alterações como rascunho">
+                            <i class="fa-solid fa-floppy-disk"></i>
+                            <span>Salvar rascunho</span>
+                        </button>
+                        <button class="btn-toolbar btn-success" id="btnPublish" title="Publicar versão oficial do calendário">
+                            <i class="fa-solid fa-cloud-arrow-up"></i>
+                            <span>Publicar</span>
+                        </button>
+                    </div>
+
+                    <div class="toolbar-group toolbar-view-actions">
+                        <div class="relative-box">
+                            <button class="btn-toolbar" id="btnExportDropdown" title="Exportar ou imprimir calendário" aria-haspopup="true" aria-controls="exportMenu">
+                                <i class="fa-solid fa-file-export"></i>
+                                <span>Exportar</span>
+                                <i class="fa-solid fa-chevron-down toolbar-chevron"></i>
+                            </button>
+                            <div class="dropdown-menu-custom" id="exportMenu">
+                                <a class="dropdown-item-custom" id="exportPdf">
+                                    <i class="fa-solid fa-file-pdf" style="color: #DC2626;"></i> Exportar PDF
+                                </a>
+                                <a class="dropdown-item-custom" id="exportPrint">
+                                    <i class="fa-solid fa-print" style="color: #2563EB;"></i> Imprimir A4
+                                </a>
+                                <a class="dropdown-item-custom" id="exportJson">
+                                    <i class="fa-solid fa-code" style="color: #059669;"></i> Exportar JSON
+                                </a>
+                            </div>
+                        </div>
+
+                        <button class="btn-toolbar" id="btnFilter" title="Filtrar cursos ou meses">
+                            <i class="fa-solid fa-filter"></i>
+                            <span>Filtros</span>
+                        </button>
+
+                        <button class="btn-toolbar" id="btnUndo" title="Abrir histórico de alterações">
+                            <i class="fa-solid fa-clock-rotate-left"></i>
+                            <span class="toolbar-button-label">Histórico</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="toolbar-right" aria-label="Calendário selecionado">
+                    <label class="toolbar-calendar-picker">
+                        <span>Calendário</span>
+                        <select id="calendarSelector" class="form-control calendar-selector" aria-label="Selecionar calendário"></select>
+                    </label>
+                    <span class="badge-status badge-rascunho" id="calStatusBadge">Rascunho</span>
+                    <button class="btn-toolbar btn-danger toolbar-delete" id="btnDeleteCalendar" title="Excluir calendário selecionado">
+                        <i class="fa-solid fa-trash"></i>
+                        <span>Excluir</span>
+                    </button>
+                </div>
+            </header>
+
+            <section id="calendarPage">
+                <div class="empty-calendar-state" id="emptyCalendarState" hidden>
+                    <h2>Nenhum calendário selecionado</h2>
+                    <p>Crie um calendário para começar a organizar o semestre.</p>
+                </div>
+
+                <!-- Folha do Calendário (Canvas / Sheet) -->
+                <div class="sheet-container">
+                <div class="calendar-paper">
+                    
+                    <!-- Top Header: Logo SENAI, Título Central, Caixas CFP e SEM/ANO -->
+                    <div class="calendar-top-header">
+                        <div class="logo-senai-box">
+                            <img src="/static/img/logo_senai.png" alt="SENAI SÃO PAULO" class="senai-logo-img">
+                        </div>
+                        <div class="header-title-box">
+                            <h1 id="calTitle">CALENDÁRIO ESCOLAR</h1>
+                            <div class="subtitle">SENAI SÃO PAULO - DEPARTAMENTO REGIONAL</div>
+                        </div>
+                        <div class="header-boxes-right">
+                            <div class="info-tag-box">
+                                <span class="tag-label">Unidade:</span>
+                                <span class="tag-val" id="calUnitCode">CFP 5.10</span>
+                            </div>
+                            <div class="info-tag-box">
+                                <span class="tag-label">SEM/ANO:</span>
+                                <span class="tag-val" id="calSemesterYear">2º / 2026</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 1. Cards de Resumo (Topo: 4 Blocos de Dados Lado a Lado) -->
+                    <section class="summary-cards-section">
+                        <div class="section-label">
+                            <i class="fa-solid fa-layer-group" style="color: var(--senai-red);"></i>
+                            <span>Categorias de Cursos e Contagem de Dias Letivos</span>
+                        </div>
+                        <div class="summary-cards-grid" id="summaryCardsGrid">
+                            <!-- Populated dynamically via JS -->
+                        </div>
+                    </section>
+
+                    <!-- 2. Grade de Meses (Corpo Principal em 2 Colunas Verticais) -->
+                    <section class="months-main-grid">
+                        <!-- Coluna da Esquerda: JULHO, AGOSTO, SETEMBRO -->
+                        <div class="month-column" id="monthsColLeft">
+                            <!-- Populated dynamically via JS -->
+                        </div>
+
+                        <!-- Coluna da Direita: OUTUBRO, NOVEMBRO, DEZEMBRO -->
+                        <div class="month-column" id="monthsColRight">
+                            <!-- Populated dynamically via JS -->
+                        </div>
+                    </section>
+
+                    <!-- 3. Rodapé e Seções de Apoio (Base) -->
+                    <section class="footer-support-section">
+                        <!-- Canto Inferior Esquerdo: Dias a compensar / compensação e Versão -->
+                        <div class="support-box">
+                            <div class="box-title">
+                                <i class="fa-solid fa-calendar-check" style="color: #0284C7;"></i>
+                                <span>Dias a compensar / Dias de compensação</span>
+                            </div>
+                            <table class="table-compensation" id="compensationTable">
+                                <thead>
+                                    <tr>
+                                        <th>Dias a compensar</th>
+                                        <th>Dias de compensação</th>
+                                        <th>Observações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Populated dynamically via JS -->
+                                </tbody>
+                            </table>
+                            <div class="version-stamp">
+                                <i class="fa-solid fa-code-commit"></i>
+                                <span id="versionStamp">Versão 01 - 06/10/2026</span>
+                            </div>
+                        </div>
+
+                        <!-- Centro / Inferior Direito: Quadro de APROVAÇÃO do Diretor Tiago Roberto Ferreira -->
+                        <div class="support-box approval-box">
+                            <div>
+                                <div class="box-title">
+                                    <i class="fa-solid fa-signature" style="color: var(--senai-blue);"></i>
+                                    <span>APROVAÇÃO DA DIREÇÃO</span>
+                                </div>
+                                <div class="approval-content">
+                                    <div><b>Diretor Responsável:</b> <span id="approvalDirectorName">Tiago Roberto Ferreira</span></div>
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <b>Status:</b>
+                                        <span class="approval-status-badge approval-pending" id="approvalStatusBadge">
+                                            <i class="fa-solid fa-clock"></i> Pendente de Assinatura
+                                        </span>
+                                    </div>
+                                    <div class="signature-stamp" id="approvalSignatureStamp" style="display: none;">
+                                        <!-- Populated when digitally signed -->
+                                    </div>
+                                    <div class="workload-note">
+                                        * Ampliação da Jornada de trabalho
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="margin-top: 12px; display: flex; justify-content: flex-end;">
+                                <button class="btn-toolbar btn-primary" id="btnDigitalSign">
+                                    <i class="fa-solid fa-file-signature"></i>
+                                    <span>Assinar Digitalmente</span>
+                                </button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Legenda de Cores Funcional -->
+                    <div class="legend-bar no-print">
+                        <span style="font-weight: 700; color: var(--senai-blue);">LEGENDA:</span>
+                        <div class="legend-item">
+                            <div class="legend-color-box" style="background: var(--color-feriado);"></div>
+                            <span>Feriados</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color-box" style="background: var(--color-inicio);"></div>
+                            <span>Início / Término de Aulas</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color-box" style="background: var(--color-nao-letivo);"></div>
+                            <span>Dias Não Letivos / Recesso / Férias</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color-box" style="background: var(--color-compensacao);"></div>
+                            <span>Dias de Compensação / Sábado Letivo</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color-box" style="background: #FFFFFF; border: 1px solid #CBD5E1;"></div>
+                            <span>Dias Letivos Normais</span>
+                        </div>
+                        <div class="legend-item" style="margin-left: auto; color: #64748B; font-size: 10.5px;">
+                            <i class="fa-solid fa-mouse-pointer"></i> Clique em qualquer dia na grade para editar status e eventos
+                        </div>
+                    </div>
+
+                </div>
+                </div>
+            </section>
+
+            <section class="users-page" id="usersPage" hidden>
+                <header class="users-page-header">
+                    <div>
+                        <h1>Gestão de usuários</h1>
+                        <p>Cadastre, edite e remova usuários do sistema.</p>
+                    </div>
+                </header>
+
+                <section class="users-form-card">
+                    <h2 id="userFormTitle">Cadastrar usuário</h2>
+                    <form id="formUserCreate" class="users-form">
+                        <label class="form-group">
+                            <span>Nome</span>
+                            <input type="text" id="newUserName" class="form-control" maxlength="120" required>
+                        </label>
+                        <label class="form-group">
+                            <span>E-mail</span>
+                            <input type="email" id="newUserEmail" class="form-control" maxlength="180" required>
+                        </label>
+                        <label class="form-group">
+                            <span id="newUserPasswordLabel">Senha (mín. 8 caracteres)</span>
+                            <input type="password" id="newUserPassword" class="form-control" minlength="8" autocomplete="new-password">
+                        </label>
+                        <label class="form-group">
+                            <span>Perfil</span>
+                            <select id="newUserRole" class="form-control" required>
+                                <option value="diretor">Diretor</option>
+                                <option value="coordenador">Coordenador</option>
+                                <option value="opp">OPP</option>
+                                <option value="colaborador">Colaborador</option>
+                            </select>
+                        </label>
+                        <label class="form-group" id="newUserStatusGroup" hidden>
+                            <span>Status</span>
+                            <select id="newUserStatus" class="form-control">
+                                <option value="true">Ativo</option>
+                                <option value="false">Inativo</option>
+                            </select>
+                        </label>
+                        <div class="users-form-actions">
+                            <button class="btn-toolbar btn-primary" id="btnSaveUser" type="submit">
+                                <i class="fa-solid fa-user-plus"></i> Cadastrar usuário
+                            </button>
+                            <button class="btn-toolbar" id="btnCancelUserEdit" type="button" hidden>Cancelar edição</button>
+                        </div>
+                    </form>
+                </section>
+
+                <section class="users-list-card">
+                    <h2>Usuários cadastrados</h2>
+                    <div class="users-table-wrap">
+                        <table class="users-table">
+                            <thead>
+                                <tr>
+                                    <th>Nome</th>
+                                    <th>E-mail</th>
+                                    <th>Perfil</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersList"></tbody>
+                        </table>
+                    </div>
+                </section>
+            </section>
+
+            <section class="users-page" id="categoriesPage" hidden>
+                <header class="users-page-header">
+                    <div>
+                        <h1>Gestão de categorias</h1>
+                        <p>Cadastre, edite e remova categorias de cursos.</p>
+                    </div>
+                </header>
+
+                <section class="users-form-card">
+                    <h2 id="categoryFormTitle">Cadastrar categoria</h2>
+                    <form id="formCategoryCreate" class="users-form">
+                        <label class="form-group">
+                            <span>Nome da categoria</span>
+                            <input type="text" id="newCategoryName" class="form-control" maxlength="120" required>
+                        </label>
+                        <label class="form-group" id="categoryStatusGroup" hidden>
+                            <span>Status</span>
+                            <select id="categoryStatus" class="form-control">
+                                <option value="true">Ativa</option>
+                                <option value="false">Inativa</option>
+                            </select>
+                        </label>
+                        <div class="users-form-actions">
+                            <button class="btn-toolbar btn-primary" id="btnSaveCategory" type="submit">
+                                <i class="fa-solid fa-plus"></i> Cadastrar categoria
+                            </button>
+                            <button class="btn-toolbar" id="btnCancelCategoryEdit" type="button" hidden>Cancelar edição</button>
+                        </div>
+                    </form>
+                </section>
+
+                <section class="users-list-card">
+                    <h2>Categorias cadastradas</h2>
+                    <div class="users-table-wrap">
+                        <table class="users-table">
+                            <thead>
+                                <tr>
+                                    <th>Categoria</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="categoriesList"></tbody>
+                        </table>
+                    </div>
+                </section>
+            </section>
+        </main>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- Modal: Edição de Dia no Calendário         -->
+    <!-- ========================================== -->
+    <div class="modal-overlay" id="modalEditDay">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Editar Dia do Calendário</h3>
+                <button class="btn-close-modal">&times;</button>
+            </div>
+            <form id="formEditDay">
+                <div class="modal-body">
+                    <div style="display: flex; justify-content: space-between; font-weight: 700; color: var(--senai-blue); border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+                        <span id="modalDayMonthName">JULHO / 2026</span>
+                        <span id="modalDayNumber">Dia 10</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="editDayType">Tipo / Classificação do Dia</label>
+                        <select id="editDayType" class="form-control" required>
+                            <option value="letivo">Dia Letivo Normal</option>
+                            <option value="feriado">Feriado (Vermelho)</option>
+                            <option value="inicio_aulas">Início / Término das Aulas (Verde)</option>
+                            <option value="nao_letivo">Dia Não Letivo / Recesso / Férias (Amarelo)</option>
+                            <option value="compensacao">Dia de Compensação / Sábado Letivo (Azul)</option>
+                            <option value="domingo">Domingo</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" id="editDayMilestoneGroup" hidden>
+                        <label for="editDayMilestone">Este dia representa</label>
+                        <select id="editDayMilestone" class="form-control">
+                            <option value="inicio">Início das aulas</option>
+                            <option value="termino">Término das aulas</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" id="editDayCategoriesGroup" hidden>
+                        <label>Categorias de cursos afetadas</label>
+                        <div id="editDayCategories" class="management-list"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="editDayTitle">Descrição / Evento no Dia</label>
+                        <input type="text" id="editDayTitle" class="form-control" placeholder="Ex: Início das aulas dos cursos técnicos...">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-toolbar btn-modal-cancel">Cancelar</button>
+                    <button type="submit" class="btn-toolbar btn-primary">Salvar Alterações</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- Modal: Histórico / Desfazer                -->
+    <!-- ========================================== -->
+    <div class="modal-overlay" id="modalHistory">
+        <div class="modal-card" style="max-width: 580px;">
+            <div class="modal-header">
+                <h3>Histórico de Alterações e Desfazer (Undo/Redo)</h3>
+                <button class="btn-close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="history-list" id="historyList">
+                    <!-- Populated dynamically via JS -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-toolbar btn-modal-cancel">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="modalCalendarCreate">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Novo calendário escolar</h3>
+                <button class="btn-close-modal">&times;</button>
+            </div>
+            <form id="formCalendarCreate">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="calendarYear">Ano</label>
+                        <input type="number" id="calendarYear" class="form-control" min="2000" max="2200" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="calendarSemester">Semestre</label>
+                        <select id="calendarSemester" class="form-control" required>
+                            <option value="1">1º semestre (janeiro a junho)</option>
+                            <option value="2">2º semestre (julho a dezembro)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Categorias de curso incluídas</label>
+                        <div id="calendarCategoryChoices" class="management-list"></div>
+                    </div>
+                    <p class="management-hint">Os dias de segunda a sexta começam como letivos; sábados e domingos são não letivos. Revise feriados, recessos e eventos após a criação.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-toolbar btn-modal-cancel">Cancelar</button>
+                    <button type="submit" class="btn-toolbar btn-primary">Criar calendário</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notifications Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Scripts -->
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

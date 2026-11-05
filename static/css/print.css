@@ -1,0 +1,77 @@
+@media print {
+    @page {
+        size: A4 landscape;
+        margin: 8mm 10mm;
+    }
+
+    body {
+        background: #FFFFFF !important;
+        color: #000000 !important;
+        font-size: 9pt !important;
+    }
+
+    .sidebar,
+    .toolbar-header,
+    .toast-container,
+    .modal-overlay,
+    .btn-toolbar,
+    .no-print {
+        display: none !important;
+    }
+
+    .main-content {
+        overflow: visible !important;
+        background: #FFFFFF !important;
+    }
+
+    .sheet-container {
+        padding: 0 !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+    }
+
+    .calendar-paper {
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+    }
+
+    .calendar-top-header {
+        border-bottom: 2px solid #002B49 !important;
+        margin-bottom: 10px !important;
+    }
+
+    .summary-card {
+        box-shadow: none !important;
+        border: 1px solid #CCC !important;
+    }
+
+    .month-card {
+        box-shadow: none !important;
+        break-inside: avoid;
+    }
+
+    .day-feriado {
+        background-color: #EF4444 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    .day-inicio_aulas {
+        background-color: #10B981 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    .day-nao_letivo {
+        background-color: #F59E0B !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    .day-compensacao {
+        background-color: #3B82F6 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+}

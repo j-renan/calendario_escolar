@@ -18,6 +18,7 @@ class CalendarApp {
         this.users = [];
         this.editingCategoryId = null;
         this.categories = [];
+        this.noteSaveQueue = Promise.resolve();
     }
 
     async init() {
@@ -150,6 +151,10 @@ class CalendarApp {
             this.submitDayEdit();
         });
         document.getElementById("editDayType")?.addEventListener("change", () => this.toggleMilestoneFields());
+        document.getElementById("editDayType")?.addEventListener("change", () => {
+            this.renderCompensationOptions();
+            this.toggleCompensationFields();
+        });
         document.getElementById("editDayMilestone")?.addEventListener("change", () => this.updateMilestoneCategorySelection());
 
         // Auth form submit
@@ -187,6 +192,20 @@ class CalendarApp {
         // Director digital signature button
         document.getElementById("btnDigitalSign")?.addEventListener("click", () => {
             this.signApproval();
+        });
+        const workloadNote = document.getElementById("workloadNote");
+        workloadNote?.addEventListener("blur", () => {
+            this.saveCalendarNote(
+                { workload_note: workloadNote.textContent || "" },
+                workloadNote,
+                this.calendar?.workload_note || ""
+            );
+        });
+        workloadNote?.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                workloadNote.blur();
+            }
         });
 
         // Navigation tabs
@@ -751,13 +770,45 @@ class CalendarApp {
 
         card.appendChild(body);
 
-        // Month Footer Note
-        if (month.footer_note) {
-            const footerNote = document.createElement("div");
-            footerNote.className = "month-footer-note";
-            footerNote.innerHTML = `<i class="fa-solid fa-circle-info" style="color: #0284C7;"></i> <span>${month.footer_note}</span>`;
-            card.appendChild(footerNote);
+        const footerNote = document.createElement("div");
+        footerNote.className = "month-footer-note";
+        const noteIcon = document.createElement("i");
+        noteIcon.className = "fa-solid fa-circle-info";
+        noteIcon.setAttribute("aria-hidden", "true");
+        const noteText = document.createElement("span");
+        noteText.className = "month-footer-note-text";
+        noteText.textContent = month.footer_note || "";
+        const canEditNotes = ["diretor", "coordenador", "opp"].includes(
+            this.currentUser?.role?.toLowerCase()
+        );
+        if (canEditNotes) {
+            noteText.contentEditable = "true";
+            noteText.tabIndex = 0;
+            noteText.setAttribute("role", "textbox");
+            noteText.setAttribute("aria-label", `Observação de ${month.month_name}`);
+            noteText.dataset.placeholder = "Clique para editar observação...";
+            noteText.title = "Clique para editar; salve ao sair do campo";
+            noteText.addEventListener("blur", () => {
+                this.saveCalendarNote(
+                    { month_index: month.month_index, footer_note: noteText.textContent || "" },
+                    noteText,
+                    month.footer_note || ""
+                );
+            });
+            noteText.addEventListener("keydown", (event) => {
+                if (event.key === "Enter") {
+                    event.preventDefault();
+                    noteText.blur();
+                }
+            });
+            const editIcon = document.createElement("i");
+            editIcon.className = "fa-solid fa-pen-to-square note-edit-icon";
+            editIcon.setAttribute("aria-hidden", "true");
+            footerNote.append(noteIcon, noteText, editIcon);
+        } else {
+            footerNote.append(noteIcon, noteText);
         }
+        card.appendChild(footerNote);
 
         // Below Grid: School Days for each course category
         const courseDaysRow = document.createElement("div");
@@ -768,7 +819,7 @@ class CalendarApp {
         for (const [courseName, count] of Object.entries(courseDays)) {
             pillsHtml += `
                 <div class="course-day-pill">
-                    <span class="course-lbl">${courseName}:</span>
+                    <span class="course-lbl">${this.escapeHtml(courseName)}:</span>
                     <span class="course-cnt">${count} d</span>
                 </div>
             `;
@@ -786,9 +837,9 @@ class CalendarApp {
             (this.calendar.compensations || []).forEach(row => {
                 const tr = document.createElement("tr");
                 tr.innerHTML = `
-                    <td><b>${row.dias_a_compensar}</b></td>
-                    <td><b style="color: #0284C7;">${row.dias_compensacao}</b></td>
-                    <td>${row.observacao || ''}</td>
+                    <td><b>${this.escapeHtml(row.dias_a_compensar)}</b></td>
+                    <td><b style="color: #0284C7;">${this.escapeHtml(row.dias_compensacao)}</b></td>
+                    <td>${this.escapeHtml(row.observacao || '')}</td>
                 `;
                 tableBody.appendChild(tr);
             });
@@ -805,8 +856,22 @@ class CalendarApp {
         const statusBadge = document.getElementById("approvalStatusBadge");
         const signatureStamp = document.getElementById("approvalSignatureStamp");
         const btnSign = document.getElementById("btnDigitalSign");
+        const workloadNote = document.getElementById("workloadNote");
+        const workloadEditIcon = document.querySelector(".workload-note .note-edit-icon");
 
         if (dirName) dirName.textContent = this.calendar.director_name || "Tiago Roberto Ferreira";
+        if (workloadNote) {
+            workloadNote.textContent = this.calendar.workload_note || "";
+            const canEditNotes = ["diretor", "coordenador", "opp"].includes(
+                this.currentUser?.role?.toLowerCase()
+            );
+            workloadNote.contentEditable = String(canEditNotes);
+            workloadNote.tabIndex = canEditNotes ? 0 : -1;
+            workloadNote.setAttribute("aria-label", "Observação da direção");
+            workloadNote.dataset.placeholder = "Clique para editar observação...";
+            workloadNote.title = "Clique para editar; salve ao sair do campo";
+            if (workloadEditIcon) workloadEditIcon.hidden = !canEditNotes;
+        }
 
         const isSigned = this.calendar.director_signature_status === "Assinado Digitalmente";
         if (statusBadge) {
@@ -836,7 +901,7 @@ class CalendarApp {
 
     // Modal Operations
     openEditDayModal(monthIndex, day, currentType, currentTitle, monthName, year) {
-        this.selectedDayContext = { monthIndex, day, year };
+        this.selectedDayContext = { monthIndex, day, year, currentType };
         document.getElementById("modalDayMonthName").textContent = `${monthName} / ${year}`;
         document.getElementById("modalDayNumber").textContent = `Dia ${day}`;
         document.getElementById("editDayType").value = currentType || "letivo";
@@ -846,7 +911,9 @@ class CalendarApp {
         const matchingEnd = this.calendar.categories.filter(category => category.end_date === dateValue);
         document.getElementById("editDayMilestone").value = matchingEnd.length && !matchingStart.length ? "termino" : "inicio";
         this.renderMilestoneCategories(dateValue);
+        this.renderCompensationOptions();
         this.toggleMilestoneFields();
+        this.toggleCompensationFields();
 
         const modal = document.getElementById("modalEditDay");
         if (modal) modal.classList.add("active");
@@ -882,6 +949,83 @@ class CalendarApp {
         document.getElementById("editDayCategoriesGroup").hidden = !isMilestone;
     }
 
+    compensationDateKey(value) {
+        const match = String(value || "").match(/^\s*(\d{1,2})\s*\/\s*([a-zç]+|\d{1,2})\s*$/i);
+        if (!match) return null;
+        const monthNames = {
+            jan: 1, fev: 2, mar: 3, abr: 4, mai: 5, jun: 6,
+            jul: 7, ago: 8, set: 9, out: 10, nov: 11, dez: 12
+        };
+        const month = /^\d+$/.test(match[2])
+            ? Number(match[2])
+            : monthNames[match[2].toLocaleLowerCase("pt-BR").slice(0, 3)];
+        return month >= 1 && month <= 12
+            ? `${month}-${Number(match[1])}`
+            : null;
+    }
+
+    renderCompensationOptions() {
+        const select = document.getElementById("editDayCompensationFor");
+        if (!select || !this.calendar || !this.selectedDayContext) return;
+
+        const { monthIndex, day, year } = this.selectedDayContext;
+        const currentDateKey = `${monthIndex}-${day}`;
+        const monthAbbrs = {
+            1: "jan", 2: "fev", 3: "mar", 4: "abr", 5: "mai", 6: "jun",
+            7: "jul", 8: "ago", 9: "set", 10: "out", 11: "nov", 12: "dez"
+        };
+        const existingPair = (this.calendar.compensations || []).find(
+            row => this.compensationDateKey(row.dias_compensacao) === currentDateKey
+        );
+        const pairedDateKey = this.compensationDateKey(existingPair?.dias_a_compensar);
+        const options = [];
+
+        for (const month of this.calendar.months || []) {
+            for (const week of month.calendar_weeks || []) {
+                for (const cell of week) {
+                    if (
+                        !cell.day
+                        || cell.type !== "nao_letivo"
+                        || !String(cell.title || "").toLocaleLowerCase("pt-BR").includes("a compensar")
+                    ) continue;
+
+                    const candidateKey = `${month.month_index}-${cell.day}`;
+                    if (candidateKey === currentDateKey) continue;
+                    const pairedRow = (this.calendar.compensations || []).find(
+                        row => this.compensationDateKey(row.dias_a_compensar) === candidateKey
+                    );
+                    if (pairedRow?.dias_compensacao && candidateKey !== pairedDateKey) continue;
+
+                    const dateValue = `${month.year}-${String(month.month_index).padStart(2, "0")}-${String(cell.day).padStart(2, "0")}`;
+                    const label = `${String(cell.day).padStart(2, "0")}/${monthAbbrs[month.month_index]}`;
+                    options.push({
+                        value: dateValue,
+                        label: `${label} — ${cell.title}`,
+                        selected: candidateKey === pairedDateKey
+                    });
+                }
+            }
+        }
+
+        select.innerHTML = '<option value="">Selecione a data a compensar</option>';
+        for (const option of options) {
+            const element = document.createElement("option");
+            element.value = option.value;
+            element.textContent = option.label;
+            element.selected = option.selected;
+            select.appendChild(element);
+        }
+    }
+
+    toggleCompensationFields() {
+        const isCompensation = document.getElementById("editDayType").value === "compensacao";
+        const group = document.getElementById("editDayCompensationGroup");
+        const select = document.getElementById("editDayCompensationFor");
+        group.hidden = !isCompensation;
+        select.required = isCompensation;
+        select.disabled = !isCompensation;
+    }
+
     updateMilestoneCategorySelection() {
         if (!this.selectedDayContext) return;
         const { monthIndex, day, year } = this.selectedDayContext;
@@ -898,8 +1042,15 @@ class CalendarApp {
         const categoryIds = newType === "inicio_aulas"
             ? [...document.querySelectorAll("#editDayCategories input:checked")].map(input => input.value)
             : [];
+        const compensationFor = newType === "compensacao"
+            ? document.getElementById("editDayCompensationFor").value
+            : null;
         if (newType === "inicio_aulas" && categoryIds.length === 0) {
             this.showToast("Selecione ao menos uma categoria de curso.", "error");
+            return;
+        }
+        if (newType === "compensacao" && !compensationFor) {
+            this.showToast("Selecione o dia que será compensado.", "error");
             return;
         }
         const editedDay = this.selectedDayContext.day;
@@ -912,7 +1063,8 @@ class CalendarApp {
                 newType,
                 newTitle,
                 milestone,
-                categoryIds
+                categoryIds,
+                compensationFor
             );
 
             this.calendar = res.calendar;
@@ -935,6 +1087,30 @@ class CalendarApp {
         } catch (err) {
             this.showToast("Erro ao salvar rascunho: " + err.message, "error");
         }
+    }
+
+    async saveCalendarNote(payload, editor, previousValue) {
+        if (!this.calendar || !editor) return;
+        const value = editor.textContent || "";
+        if (value === previousValue) return;
+        if (value.length > 2000) {
+            editor.textContent = previousValue;
+            this.showToast("A observação deve ter até 2000 caracteres.", "error");
+            return;
+        }
+
+        const calendarId = this.calendar.id;
+        this.noteSaveQueue = this.noteSaveQueue.then(async () => {
+            try {
+                const res = await window.apiService.updateCalendarNotes(calendarId, payload);
+                if (this.calendar?.id === calendarId) this.calendar = res.calendar;
+                this.showToast("Observação salva no banco de dados.", "success");
+            } catch (error) {
+                if (this.calendar?.id === calendarId) editor.textContent = previousValue;
+                this.showToast("Falha ao salvar observação: " + error.message, "error");
+            }
+        });
+        await this.noteSaveQueue;
     }
 
     async publishCalendar() {

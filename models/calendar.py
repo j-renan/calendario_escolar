@@ -63,33 +63,46 @@ class SchoolCalendar:
     updated_at: Optional[datetime] = None
 
     def calculate_totals(self):
-        """Recalculates each category's school days within its selected date range."""
+        """Recalculates category counts for each month and the selected date range."""
+        month_abbrs = {
+            1: "JAN", 2: "FEV", 3: "MAR", 4: "ABR", 5: "MAI", 6: "JUN",
+            7: "JUL", 8: "AGO", 9: "SET", 10: "OUT", 11: "NOV", 12: "DEZ"
+        }
         for cat in self.categories:
             start_date = cat.get("start_date", "-")
             end_date = cat.get("end_date", "-")
-            if start_date == "-" or end_date == "-":
-                cat["total_days"] = 0
-                continue
-
-            start = datetime.strptime(start_date, "%d/%m/%Y").date()
-            end = datetime.strptime(end_date, "%d/%m/%Y").date()
+            start = datetime.strptime(start_date, "%d/%m/%Y").date() if start_date != "-" else None
+            end = datetime.strptime(end_date, "%d/%m/%Y").date() if end_date != "-" else None
             total_days = 0
-            if start <= end:
-                for month in self.months:
-                    month_index = month["month_index"]
-                    year = month["year"]
-                    for week in month.get("calendar_weeks", []):
-                        for cell in week:
-                            day = cell.get("day")
-                            if day is None or cell.get("type") not in {
-                                "letivo", "inicio_aulas", "compensacao"
-                            }:
-                                continue
-                            current_date = datetime(year, month_index, day).date()
-                            if start <= current_date <= end:
-                                total_days += 1
+            can_calculate_total = start is not None and end is not None and start <= end
+            monthly_days = cat.setdefault("monthly_days", {})
 
-            cat["total_days"] = total_days
+            for month in self.months:
+                month_index = month["month_index"]
+                year = month["year"]
+                month_abbr = month.get("month_abbr") or month_abbrs.get(month_index)
+                days_in_month = 0
+                for week in month.get("calendar_weeks", []):
+                    for cell in week:
+                        day = cell.get("day")
+                        if day is None or cell.get("type") not in {
+                            "letivo", "inicio_aulas", "compensacao"
+                        }:
+                            continue
+                        current_date = datetime(year, month_index, day).date()
+                        if start is not None and current_date < start:
+                            continue
+                        if end is not None and current_date > end:
+                            continue
+                        days_in_month += 1
+                        if can_calculate_total:
+                            total_days += 1
+
+                if month_abbr:
+                    monthly_days[month_abbr] = days_in_month
+                month.setdefault("course_days", {})[cat["title"]] = days_in_month
+
+            cat["total_days"] = total_days if can_calculate_total else 0
 
     def to_dict(self) -> dict:
         return {

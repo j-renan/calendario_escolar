@@ -144,6 +144,27 @@ def sign_approval(calendar_id: int):
     except Exception as e:
         return jsonify({"error": f"Erro ao assinar aprovação: {str(e)}"}), 500
 
+@calendar_bp.route("/<int:calendar_id>/notes", methods=["PUT"])
+@roles_required(*EDITOR_ROLES)
+def update_calendar_notes(calendar_id: int):
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "O corpo da requisição deve ser um objeto JSON."}), 400
+    try:
+        updated = calendar_presenter.update_notes(
+            calendar_id,
+            data,
+            user_id=g.current_user["user_id"]
+        )
+        return jsonify({
+            "message": "Observação salva com sucesso!",
+            "calendar": updated.to_dict()
+        }), 200
+    except AppException as e:
+        return jsonify({"error": e.message}), e.status_code
+    except Exception as e:
+        return jsonify({"error": f"Erro ao salvar observação: {str(e)}"}), 500
+
 @calendar_bp.route("/<int:calendar_id>/day", methods=["POST"])
 @roles_required(*EDITOR_ROLES)
 def update_day(calendar_id: int):
@@ -156,6 +177,7 @@ def update_day(calendar_id: int):
     title = data.get("title")
     milestone = data.get("milestone")
     category_ids = data.get("category_ids", [])
+    compensation_for = data.get("compensation_for")
 
     if (
         isinstance(month_index, bool) or not isinstance(month_index, int)
@@ -163,6 +185,7 @@ def update_day(calendar_id: int):
         or not isinstance(day_type, str) or not day_type
         or (title is not None and not isinstance(title, str))
         or not isinstance(category_ids, list)
+        or (compensation_for is not None and not isinstance(compensation_for, str))
     ):
         return jsonify({"error": "Parâmetros do dia inválidos ou incompletos."}), 400
 
@@ -176,6 +199,7 @@ def update_day(calendar_id: int):
             new_title=title,
             milestone=milestone,
             category_ids=category_ids,
+            compensation_for=compensation_for,
             user_id=user_id
         )
         return jsonify({

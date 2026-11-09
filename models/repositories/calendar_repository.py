@@ -23,7 +23,7 @@ class PostgresCalendarRepository(ICalendarRepository):
         if isinstance(signature_date_val, datetime):
             signature_date_val = signature_date_val.strftime("%d/%m/%Y %H:%M:%S")
 
-        return SchoolCalendar(
+        calendar = SchoolCalendar(
             id=row["id"],
             title=row["title"],
             unit_code=row["unit_code"],
@@ -42,6 +42,8 @@ class PostgresCalendarRepository(ICalendarRepository):
             created_at=row["created_at"],
             updated_at=row["updated_at"]
         )
+        calendar.calculate_totals()
+        return calendar
 
     def get_by_id(self, calendar_id: int) -> Optional[SchoolCalendar]:
         query = """

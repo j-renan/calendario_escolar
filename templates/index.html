@@ -14,7 +14,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     
     <!-- Stylesheets -->
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/style.css?v=20261109-4">
     <link rel="stylesheet" href="/static/css/print.css" media="print">
     
     <style>
@@ -293,7 +293,8 @@
                                         <!-- Populated when digitally signed -->
                                     </div>
                                     <div class="workload-note">
-                                        * Ampliação da Jornada de trabalho
+                                        <span id="workloadNote">* Ampliação da Jornada de trabalho</span>
+                                        <i class="fa-solid fa-pen-to-square note-edit-icon" aria-hidden="true"></i>
                                     </div>
                                 </div>
                             </div>
@@ -496,6 +497,13 @@
                         <div id="editDayCategories" class="management-list"></div>
                     </div>
 
+                    <div class="form-group" id="editDayCompensationGroup" hidden>
+                        <label for="editDayCompensationFor">Dia a compensar</label>
+                        <select id="editDayCompensationFor" class="form-control">
+                            <option value="">Selecione a data a compensar</option>
+                        </select>
+                    </div>
+
                     <div class="form-group">
                         <label for="editDayTitle">Descrição / Evento no Dia</label>
                         <input type="text" id="editDayTitle" class="form-control" placeholder="Ex: Início das aulas dos cursos técnicos...">
@@ -566,7 +574,7 @@
     <div class="toast-container" id="toastContainer"></div>
 
     <!-- Scripts -->
-    <script src="/static/js/api.js"></script>
-    <script src="/static/js/app.js"></script>
+    <script src="/static/js/api.js?v=20261109-4"></script>
+    <script src="/static/js/app.js?v=20261109-4"></script>
 </body>
 </html>

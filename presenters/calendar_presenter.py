@@ -88,6 +88,52 @@ class CalendarPresenter:
         self.calendar_repo.add_history(calendar.id, "Salvo como Rascunho", updated.to_dict(), user_id)
         return updated
 
+    def update_notes(
+        self,
+        calendar_id: int,
+        payload: dict,
+        user_id: Optional[int] = None
+    ) -> SchoolCalendar:
+        calendar = self.get_by_id(calendar_id)
+        if not isinstance(payload, dict) or not payload:
+            raise ValidationError("Informe ao menos uma observação para atualizar.")
+
+        updated_fields = []
+        if "workload_note" in payload:
+            workload_note = payload["workload_note"]
+            if not isinstance(workload_note, str) or len(workload_note) > 2000:
+                raise ValidationError("A observação da direção deve ter até 2000 caracteres.")
+            calendar.workload_note = workload_note
+            updated_fields.append("observação da direção")
+
+        if "footer_note" in payload:
+            month_index = payload.get("month_index")
+            footer_note = payload["footer_note"]
+            if isinstance(month_index, bool) or not isinstance(month_index, int):
+                raise ValidationError("Informe um mês válido para a observação.")
+            if not isinstance(footer_note, str) or len(footer_note) > 2000:
+                raise ValidationError("A observação do mês deve ter até 2000 caracteres.")
+            target_month = next(
+                (month for month in calendar.months if month.get("month_index") == month_index),
+                None
+            )
+            if not target_month:
+                raise NotFoundError(f"Mês com índice {month_index} não encontrado.")
+            target_month["footer_note"] = footer_note
+            updated_fields.append(f"observação de {target_month['month_name']}")
+
+        if not updated_fields:
+            raise ValidationError("Nenhuma observação válida foi informada.")
+
+        updated = self.calendar_repo.update(calendar)
+        self.calendar_repo.add_history(
+            calendar.id,
+            f"Atualização de {' e '.join(updated_fields)}",
+            updated.to_dict(),
+            user_id
+        )
+        return updated
+
     def publish(self, calendar_id: int, user_id: Optional[int] = None) -> SchoolCalendar:
         calendar = self.get_by_id(calendar_id)
         calendar.status = "publicado"
@@ -140,6 +186,7 @@ class CalendarPresenter:
         new_title: str,
         milestone: Optional[str] = None,
         category_ids: Optional[List[Any]] = None,
+        compensation_for: Optional[str] = None,
         user_id: Optional[int] = None
     ) -> SchoolCalendar:
         calendar = self.get_by_id(calendar_id)
@@ -158,6 +205,8 @@ class CalendarPresenter:
 
         if not target_month:
             raise NotFoundError(f"Mês com índice {month_index} não encontrado.")
+        if new_type == "compensacao" and not compensation_for:
+            raise ValidationError("Selecione o dia que será compensado.")
 
         month_abbrs = {
             1: "JAN", 2: "FEV", 3: "MAR", 4: "ABR", 5: "MAI", 6: "JUN",
@@ -232,31 +281,136 @@ class CalendarPresenter:
                 "color_type": color_type
             })
 
-        # Recalculate school days count for month
-        school_days_count = 0
-        for week in target_month.get("calendar_weeks", []):
-            for cell in week:
-                if cell.get("day") and cell.get("type") in ["letivo", "inicio_aulas", "compensacao"]:
-                    school_days_count += 1
-
-        # Synchronize course days
-        for course_title in target_month.get("course_days", {}):
-            target_month["course_days"][course_title] = school_days_count
-
-        # Map to category month short code
-        abbr = next(
-            (month.get("month_abbr") for month in calendar.months if month.get("month_index") == month_index),
-            month_abbrs.get(month_index)
+        self._sync_compensation_row(
+            calendar,
+            month_index,
+            day,
+            updated_cell.get("type"),
+            updated_cell.get("title", ""),
+            compensation_for
         )
-        if abbr:
-            for cat in calendar.categories:
-                if abbr in cat.get("monthly_days", {}):
-                    cat["monthly_days"][abbr] = school_days_count
 
         calendar.calculate_totals()
         updated = self.calendar_repo.update(calendar)
         self.calendar_repo.add_history(calendar.id, f"Alteração no dia {day:02d} ({target_month['month_name']}) para {new_type}", updated.to_dict(), user_id)
         return updated
+
+    def _sync_compensation_row(
+        self,
+        calendar: SchoolCalendar,
+        month_index: int,
+        day: int,
+        day_type: str,
+        title: str,
+        compensation_for: Optional[str] = None
+    ) -> None:
+        month_abbrs = {
+            1: "jan", 2: "fev", 3: "mar", 4: "abr", 5: "mai", 6: "jun",
+            7: "jul", 8: "ago", 9: "set", 10: "out", 11: "nov", 12: "dez"
+        }
+        month_numbers = {value: key for key, value in month_abbrs.items()}
+
+        def compensation_date_key(value: Any):
+            match = re.search(r"(\d{1,2})\s*/\s*([a-zç]+|\d{1,2})", str(value or ""), re.IGNORECASE)
+            if not match:
+                return None
+            month_value = match.group(2).casefold()
+            month_number = int(month_value) if month_value.isdigit() else month_numbers.get(month_value[:3])
+            if not month_number:
+                return None
+            return int(match.group(1)), month_number
+
+        edited_date_key = (day, month_index)
+        edited_date_label = f"{day:02d}/{month_abbrs[month_index]}"
+
+        if day_type == "compensacao":
+            try:
+                selected_date = datetime.strptime(compensation_for, "%Y-%m-%d").date()
+            except (TypeError, ValueError) as error:
+                raise ValidationError("Selecione uma data válida para compensar.") from error
+
+            selected_key = (selected_date.day, selected_date.month)
+            selected_month = next(
+                (month for month in calendar.months
+                 if month.get("month_index") == selected_date.month
+                 and month.get("year") == selected_date.year),
+                None
+            )
+            selected_cell = next(
+                (
+                    cell
+                    for week in (selected_month or {}).get("calendar_weeks", [])
+                    for cell in week
+                    if cell.get("day") == selected_date.day
+                ),
+                None
+            )
+            if (
+                not selected_cell
+                or selected_cell.get("type") != "nao_letivo"
+                or "a compensar" not in str(selected_cell.get("title", "")).casefold()
+            ):
+                raise ValidationError("A data selecionada não está marcada como dia a compensar.")
+            if selected_key == edited_date_key:
+                raise ValidationError("Um dia não pode compensar a si próprio.")
+
+            target_row = next(
+                (
+                    row for row in calendar.compensations
+                    if compensation_date_key(row.get("dias_a_compensar")) == selected_key
+                ),
+                None
+            )
+            if not target_row:
+                target_row = {
+                    "dias_a_compensar": f"{selected_date.day:02d}/{month_abbrs[selected_date.month]}",
+                    "dias_compensacao": "",
+                    "observacao": selected_cell.get("title", ""),
+                    "auto_generated": True
+                }
+                calendar.compensations.append(target_row)
+
+            existing_compensation_key = compensation_date_key(
+                target_row.get("dias_compensacao")
+            ) if target_row else None
+            if existing_compensation_key and existing_compensation_key != edited_date_key:
+                raise ValidationError("Esse dia a compensar já possui um dia de compensação.")
+
+            for row in calendar.compensations:
+                if (
+                    row is not target_row
+                    and compensation_date_key(row.get("dias_compensacao")) == edited_date_key
+                ):
+                    row["dias_compensacao"] = ""
+
+            target_row["dias_compensacao"] = edited_date_label
+            return
+
+        for row in calendar.compensations:
+            if compensation_date_key(row.get("dias_compensacao")) == edited_date_key:
+                row["dias_compensacao"] = ""
+
+        if day_type == "nao_letivo" and "a compensar" in (title or "").casefold():
+            target_row = next(
+                (
+                    row for row in calendar.compensations
+                    if compensation_date_key(row.get("dias_a_compensar")) == edited_date_key
+                ),
+                None
+            )
+            if not target_row:
+                calendar.compensations.append({
+                    "dias_a_compensar": edited_date_label,
+                    "dias_compensacao": "",
+                    "observacao": title,
+                    "auto_generated": True
+                })
+            return
+
+        calendar.compensations = [
+            row for row in calendar.compensations
+            if compensation_date_key(row.get("dias_a_compensar")) != edited_date_key
+        ]
 
     def get_history(self, calendar_id: int) -> List[Dict[str, Any]]:
         return self.calendar_repo.get_history(calendar_id)
@@ -496,7 +650,11 @@ class CalendarPresenter:
                 *cell_styles,
             ]))
 
-            footer_p = Paragraph(f"<i><font size=6 color='#666'>{m.get('footer_note')}</font></i>", styles['Normal'])
+            footer_note = html.escape(str(m.get("footer_note") or ""))
+            footer_p = Paragraph(
+                f"<i><font size=6 color='#666'>{footer_note}</font></i>",
+                styles["Normal"]
+            )
 
             block_t = Table([
                 [
@@ -567,7 +725,7 @@ class CalendarPresenter:
             <b>Status:</b> <font color="{approval_color}">{calendar.director_signature_status}</font><br/>
             <b>Data/Hora:</b> {calendar.signature_date or 'Pendente'}<br/>
             <b>Autenticação:</b> {calendar.signature_hash or 'Não assinado'}<br/>
-            <i>{calendar.workload_note}</i>
+            <i>{html.escape(str(calendar.workload_note or ""))}</i>
         """
         right_bottom = Table([[Paragraph(sig_text, styles['Normal'])]], colWidths=[390])
         right_bottom.setStyle(TableStyle([

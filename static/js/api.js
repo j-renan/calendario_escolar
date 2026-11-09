@@ -171,7 +171,23 @@ class ApiService {
         });
     }
 
-    async updateDay(calendarId, monthIndex, day, dayType, title, milestone = null, categoryIds = []) {
+    async updateCalendarNotes(calendarId, payload) {
+        return this.request(`/api/calendars/${calendarId}/notes`, {
+            method: "PUT",
+            body: JSON.stringify(payload)
+        });
+    }
+
+    async updateDay(
+        calendarId,
+        monthIndex,
+        day,
+        dayType,
+        title,
+        milestone = null,
+        categoryIds = [],
+        compensationFor = null
+    ) {
         return this.request(`/api/calendars/${calendarId}/day`, {
             method: "POST",
             body: JSON.stringify({
@@ -180,7 +196,8 @@ class ApiService {
                 day_type: dayType,
                 title: title,
                 milestone,
-                category_ids: categoryIds
+                category_ids: categoryIds,
+                compensation_for: compensationFor
             })
         });
     }

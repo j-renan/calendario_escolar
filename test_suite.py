@@ -9,6 +9,22 @@ from models.calendar import SchoolCalendar
 from presenters.calendar_presenter import CalendarPresenter
 
 
+class InMemoryCalendarRepository:
+    def __init__(self, calendar):
+        self.calendar = calendar
+        self.history = []
+
+    def get_by_id(self, calendar_id):
+        return self.calendar if self.calendar.id == calendar_id else None
+
+    def update(self, calendar):
+        self.calendar = calendar
+        return calendar
+
+    def add_history(self, calendar_id, action, snapshot, user_id=None):
+        self.history.append((calendar_id, action, snapshot, user_id))
+
+
 class TestCalendarGeneration(unittest.TestCase):
     def test_first_semester_generates_leap_year_months_and_weekdays(self):
         calendar = SchoolCalendar.create_for_period(
@@ -67,6 +83,114 @@ class TestCalendarGeneration(unittest.TestCase):
 
         self.assertEqual(calendar.categories[0]["total_days"], 4)
         self.assertEqual(calendar.categories[1]["total_days"], 1)
+        self.assertEqual(calendar.categories[0]["monthly_days"]["JAN"], 4)
+        self.assertEqual(calendar.months[0]["course_days"]["Curso Técnico"], 4)
+        self.assertEqual(calendar.months[0]["course_days"]["Aprendizagem"], 1)
+
+    def test_start_date_recalculates_month_summary_and_compensation_table(self):
+        calendar = SchoolCalendar.create_for_period(
+            2028, 1, [{"id": 1, "name": "Curso Técnico"}]
+        )
+        calendar.id = 1
+        repository = InMemoryCalendarRepository(calendar)
+        presenter = CalendarPresenter(repository)
+
+        updated = presenter.update_day_cell(
+            calendar_id=1,
+            month_index=1,
+            day=4,
+            new_type="inicio_aulas",
+            new_title="Início das aulas",
+            milestone="inicio",
+            category_ids=[1]
+        )
+        self.assertEqual(updated.months[0]["course_days"]["Curso Técnico"], 20)
+        self.assertEqual(updated.categories[0]["monthly_days"]["JAN"], 20)
+
+        updated = presenter.update_day_cell(
+            calendar_id=1,
+            month_index=1,
+            day=8,
+            new_type="nao_letivo",
+            new_title="Dia a compensar (Ponte)",
+        )
+        compensation = next(
+            row for row in updated.compensations
+            if row["dias_a_compensar"] == "08/jan"
+        )
+        self.assertEqual(compensation["dias_compensacao"], "")
+        self.assertEqual(compensation["observacao"], "Dia a compensar (Ponte)")
+
+    def test_note_updates_are_saved_without_changing_calendar_status(self):
+        calendar = SchoolCalendar.create_for_period(
+            2028, 1, [{"id": 1, "name": "Curso Técnico"}]
+        )
+        calendar.id = 1
+        calendar.status = "publicado"
+        repository = InMemoryCalendarRepository(calendar)
+        presenter = CalendarPresenter(repository)
+
+        updated = presenter.update_notes(
+            1,
+            {"month_index": 1, "footer_note": "Recesso ajustado"},
+            user_id=7
+        )
+        updated = presenter.update_notes(
+            1,
+            {"workload_note": "Jornada ampliada mediante planejamento"},
+            user_id=7
+        )
+
+        self.assertEqual(updated.months[0]["footer_note"], "Recesso ajustado")
+        self.assertEqual(updated.workload_note, "Jornada ampliada mediante planejamento")
+        self.assertEqual(updated.status, "publicado")
+        self.assertEqual(len(repository.history), 2)
+
+    def test_compensation_days_are_linked_one_to_one(self):
+        calendar = SchoolCalendar.create_for_period(
+            2028, 1, [{"id": 1, "name": "Curso Técnico"}]
+        )
+        calendar.id = 1
+        repository = InMemoryCalendarRepository(calendar)
+        presenter = CalendarPresenter(repository)
+
+        updated = presenter.update_day_cell(
+            calendar_id=1,
+            month_index=1,
+            day=8,
+            new_type="nao_letivo",
+            new_title="Dia a compensar",
+        )
+        updated = presenter.update_day_cell(
+            calendar_id=1,
+            month_index=1,
+            day=10,
+            new_type="compensacao",
+            new_title="Sábado letivo",
+            compensation_for="2028-01-08"
+        )
+        row = next(item for item in updated.compensations if item["dias_a_compensar"] == "08/jan")
+        self.assertEqual(row["dias_compensacao"], "10/jan")
+
+        with self.assertRaises(ValidationError):
+            presenter.update_day_cell(
+                calendar_id=1,
+                month_index=1,
+                day=12,
+                new_type="compensacao",
+                new_title="Outro sábado letivo",
+                compensation_for="2028-01-08"
+            )
+
+        updated = presenter.update_day_cell(
+            calendar_id=1,
+            month_index=1,
+            day=10,
+            new_type="letivo",
+            new_title="Dia letivo",
+        )
+        row = next(item for item in updated.compensations if item["dias_a_compensar"] == "08/jan")
+        self.assertEqual(row["dias_compensacao"], "")
 
     def test_calendar_presenter_rejects_duplicate_semester(self):
         class DuplicateCalendarRepository:
@@ -166,12 +290,13 @@ class TestSchoolCalendarApp(unittest.TestCase):
         # Get calendar
         cal_id = self.calendar_id_for_period("2º / 2026")
 
-        # Update day 10 of Julho (month_index 7) to compensacao
+        # Link day 18 of Julho as compensation for July 10
         res = self.client.post(f"/api/calendars/{cal_id}/day", json={
             "month_index": 7,
-            "day": 10,
+            "day": 18,
             "day_type": "compensacao",
-            "title": "Dia Letivo Especial de Compensação"
+            "title": "Dia Letivo Especial de Compensação",
+            "compensation_for": "2026-07-10"
         }, headers=headers)
         self.assertEqual(res.status_code, 200)
         updated_cal = res.get_json()["calendar"]
